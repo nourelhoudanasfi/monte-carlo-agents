@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Échecs : le labo des stratégies</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.2/chess.js"></script>
+<style>
+:root{--bg:#f6f4ef;--fg:#1d1d1b;--mut:#6b675e;--card:#fff;--bd:#d9d4c7;--acc:#2f6fdb;--lt:#f0d9b5;--dk:#b58863;--sel:#f6e05e;--tgt:#3aa65a;--last:rgba(255,213,0,.5);--wp:#fff;--bp:#14110f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171b;--fg:#e9e6df;--mut:#9a968b;--card:#1f232a;--bd:#363b44;--acc:#6aa0ff;--lt:#c8b18a;--dk:#7b5b3e;--sel:#d9bf2f;--last:rgba(255,213,0,.35)}}
+:root[data-theme="dark"]{--bg:#15171b;--fg:#e9e6df;--mut:#9a968b;--card:#1f232a;--bd:#363b44;--acc:#6aa0ff;--lt:#c8b18a;--dk:#7b5b3e;--sel:#d9bf2f;--last:rgba(255,213,0,.35)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding:14px}
+h1{font-size:1.25rem;margin:0 0 2px}.sub{color:var(--mut);margin:0 0 12px;font-size:.9rem}
+.wrap{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;max-width:980px;margin:auto}
+.left{flex:0 1 480px;min-width:280px;width:100%;max-width:480px}.right{flex:1 1 300px;min-width:280px}
+#board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border:2px solid var(--bd);border-radius:6px;overflow:hidden;user-select:none}
+.sq{display:flex;align-items:center;justify-content:center;font-size:clamp(24px,8.2vw,44px);line-height:1;cursor:pointer;position:relative}
+.lt{background:var(--lt)}.dk{background:var(--dk)}.last{box-shadow:inset 0 0 0 100px var(--last)}.sel{box-shadow:inset 0 0 0 100px var(--sel)}
+.tgt::after{content:"";width:28%;height:28%;border-radius:50%;background:var(--tgt);opacity:.75;position:absolute}
+.wp{color:var(--wp);text-shadow:0 0 2px #000,0 0 2px #000,0 1px 1px #000}.bp{color:var(--bp)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px}
+.tabs{display:flex;gap:6px;margin-bottom:10px}.tabs button{flex:1}
+button,select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;cursor:pointer}
+button.on,button.primary{background:var(--acc);color:#fff;border-color:var(--acc)}button:disabled{opacity:.5;cursor:default}
+label{display:block;font-size:.8rem;color:var(--mut);margin:8px 0 3px}select{width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.row>*{flex:1}.desc{font-size:.85rem;color:var(--mut);margin-top:4px;min-height:2.4em}
+#status{font-weight:600;min-height:1.5em;margin:8px 0 2px}.mat{color:var(--mut);font-size:.85rem}
+#moves{font-size:.82rem;color:var(--mut);max-height:84px;overflow:auto;margin-top:6px;word-spacing:2px}
+.bar{display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid var(--bd);margin:8px 0 4px}.bar i{display:block}
+.u{font-size:.82rem;margin-top:6px}.hide{display:none}.note{font-size:.8rem;color:var(--mut)}
+</style></head><body>
+<h1>♟︎ Échecs : le labo des stratégies</h1>
+<p class="sub">Les 15 joueurs de notre TP Monte-Carlo : jouez contre eux, ou faites-les s’affronter entre eux.</p>
+<div class="wrap">
+<div class="left"><div id="board"></div><div id="status"></div><div class="mat" id="mat"></div><div id="moves"></div></div>
+<div class="right">
+ <div class="tabs"><button id="tH" class="on">🧑 Humain vs IA</button><button id="tA">🤖 IA vs IA</button></div>
+ <div class="card" id="pH">
+  <label for="opp">Votre adversaire</label><select id="opp"></select><div class="desc" id="dO"></div>
+  <label for="col">Votre couleur</label><select id="col"><option value="w">Blancs</option><option value="b">Noirs</option><option value="r">Aléatoire</option></select>
+  <div class="row"><button class="primary" id="newH">Nouvelle partie</button></div>
+  <div class="u" id="uH"></div>
+ </div>
+ <div class="card hide" id="pA">
+  <label for="wa">Blancs (modèle / combo 1)</label><select id="wa"></select><div class="desc" id="dW"></div>
+  <label for="ba">Noirs (modèle / combo 2)</label><select id="ba"></select><div class="desc" id="dB"></div>
+  <label for="spd">Vitesse</label><select id="spd"><option value="900">Lente</option><option value="350" selected>Normale</option><option value="80">Rapide</option><option value="0">Max</option></select>
+  <div class="row"><button class="primary" id="go">▶ Lancer</button><button id="stp">Pas à pas</button><button id="rst">↺ Reset</button></div>
+  <div class="u" id="uA"></div>
+  <div class="note">Parties limitées à 120 demi-coups, arbitrées au matériel (écart ≥ 3).</div>
+ </div>
+ <div class="card hide" id="pS">
+  <b>Série rapide</b> <span class="note">Joueur 1 = menu Blancs, joueur 2 = menu Noirs ; couleurs alternées, comme dans le notebook.</span>
+  <div class="row"><select id="ns"><option>10</option><option selected>20</option><option>40</option></select><button class="primary" id="ser">Lancer la série</button></div>
+  <div id="sres" class="u"></div>
+ </div>
+</div></div>
+<script>
+const PV={p:1,n:3,b:3,r:5,q:9,k:0},AT={...PV,k:100};
+const rnd=a=>a[Math.floor(Math.random()*a.length)],mv=c=>c.moves({verbose:true});
+const fr=s=>["abcdefgh".indexOf(s[0]),+s[1]-1],capV=m=>m.captured?PV[m.captured]:0;
+const isMate=m=>m.san.endsWith('#'),isChk=m=>/[+#]/.test(m.san);
+const fenp=c=>c.fen().split(' ');
+function material(c){let s=0;for(const k of c.fen().split(' ')[0]){const t=k.toLowerCase();if(/[a-z]/i.test(k)&&PV[t]!==undefined)s+=(k===t?-1:1)*PV[t]}return s}
+function phase(c){const f=fenp(c),n=f[0].replace(/[\d/]/g,'').length;return(+f[5]<=8&&n>=28)?'ouverture':n<=12?'finale':'milieu'}
+function safeScore(c,m){
+ if(isMate(m))return 1000;
+ const gain=capV(m)+(m.promotion?PV[m.promotion]-1:0);c.move(m);
+ const stale=c.in_stalemate();let loss=0;
+ if(!stale){const moved=PV[m.promotion||m.piece],caps=mv(c).filter(o=>o.to===m.to&&o.captured);
+  if(caps.length){caps.sort((a,b)=>AT[a.piece]-AT[b.piece]);const k=caps[0];c.move(k);
+   const def=mv(c).some(o=>o.to===m.to&&o.captured);c.undo();loss=def?Math.max(0,moved-AT[k.piece]):moved}}
+ c.undo();return gain-loss+(isChk(m)?.2:0)-(stale?5:0)}
+const best=(c,f)=>{let b=-1e9,r=null;for(const m of mv(c)){const s=f(m)+Math.random()*.05;if(s>b){b=s;r=m}}return r};
+const sRandom=c=>rnd(mv(c));
+function sGreedy(c){const ms=mv(c),t=Math.max(...ms.map(capV));return rnd(t>0?ms.filter(m=>capV(m)===t):ms)}
+function sMateHunter(c){const ms=mv(c),m1=ms.find(isMate);if(m1)return m1;const ch=ms.filter(isChk);return rnd(ch.length?ch:ms)}
+const sSafe=c=>best(c,m=>safeScore(c,m));
+const order=ms=>ms.sort((a,b)=>(b.captured?10*PV[b.captured]-PV[b.piece]:-100)-(a.captured?10*PV[a.captured]-PV[a.piece]:-100));
+function nega(c,d,al,be){
+ const st=()=>{const m=material(c);return c.turn()==='w'?m:-m};
+ if(d===0&&!c.in_check())return st();
+ const ms=mv(c);if(!ms.length)return c.in_check()?-10000-d:0;if(d===0)return st();
+ let b=-1e9;for(const m of order(ms)){c.move(m);const v=-nega(c,d-1,-be,-al);c.undo();if(v>b)b=v;if(v>al)al=v;if(al>=be)break}return b}
+function sMinimax(c){let b=-1e9;const cand=[];
+ for(const m of order(mv(c))){c.move(m);const v=-nega(c,1,-1e9,-(b-.3));c.undo();cand.push([v,m]);b=Math.max(b,v)}
+ return rnd(cand.filter(x=>x[0]>=b-.05))[1]}
+const cen=s=>{const[f,r]=fr(s);return 3.5-Math.max(Math.abs(f-3.5),Math.abs(r-3.5))};
+function pst(t,s,w,eg){const c=cen(s),r=w?fr(s)[1]:7-fr(s)[1];
+ return t==='p'?.08*r+.05*c:t==='n'?.18*c:t==='b'?.1*c:t==='r'?(r===6?.15:0):t==='q'?.03*c:(eg?.1*c:-.1*c)}
+function sPositional(c){const eg=phase(c)==='finale',w=c.turn()==='w',fm=+fenp(c)[5];
+ return best(c,m=>{let s=safeScore(c,m)+pst(m.piece,m.to,w,eg)-pst(m.piece,m.from,w,eg);
+  if(/[kq]/.test(m.flags))s+=.7;const rel=w?fr(m.from)[1]:7-fr(m.from)[1];
+  if((m.piece==='n'||m.piece==='b')&&rel===0)s+=.25;if(m.piece==='q'&&fm<=8&&!m.captured)s-=.3;return s})}
+function sPawnRush(c){const ms=mv(c),w=c.turn()==='w',pr=ms.filter(m=>m.promotion==='q');if(pr.length)return rnd(pr);
+ const pw=ms.filter(m=>m.piece==='p');if(!pw.length)return rnd(ms);const rk=m=>w?fr(m.to)[1]:7-fr(m.to)[1],t=Math.max(...pw.map(rk));return rnd(pw.filter(m=>rk(m)===t))}
+function sStrangler(c){return best(c,m=>{if(isMate(m))return 1000;c.move(m);const s=c.in_stalemate()?-50:-c.moves().length;c.undo();return s}) }
+// combos
+const mix=(A,B,p)=>c=>Math.random()<p?A(c):B(c);
+const phases=(o,m,e)=>c=>({ouverture:o,milieu:m,finale:e})[phase(c)](c);
+function cascade(c){const ms=mv(c),m1=ms.find(isMate);if(m1)return m1;let b=-1e9,r=null;
+ for(const m of ms){const s=safeScore(c,m);if(s>b){b=s;r=m}}return b>=1?r:sPositional(c)}
+const vote=L=>c=>{const v={};for(const s of L){const m=s(c);(v[m.san]=v[m.san]||{m,n:0}).n++}
+ const t=Math.max(...Object.values(v).map(x=>x.n));return rnd(Object.values(v).filter(x=>x.n===t)).m};
+// hybrides : 2 modèles, un routeur
+function hybrid(router,models){const f=c=>{const k=router(c);f.usage[k]=(f.usage[k]||0)+1;return models[k][1](c)};f.usage={};f.models=models;return f}
+const H1=hybrid(c=>c.in_check()||mv(c).some(m=>m.captured)?'tactique':'calme',{tactique:['Minimax-2',sMinimax],calme:['Positionnel',sPositional]});
+const H2=hybrid(c=>material(c)*(c.turn()==='w'?1:-1)>=2?'en avance':'égal/retard',{'en avance':['Étrangleur',sStrangler],'égal/retard':['Positionnel',sPositional]});
+const H3=hybrid(c=>phase(c)==='finale'?'finale':'autre',{finale:['Minimax-2',sMinimax],autre:['Glouton prudent',sSafe]});
+const REG=[
+ ['b1','1 Aléatoire','Base',sRandom,'Coup légal tiré au hasard (la politique du TP d’origine).'],
+ ['b2','2 Capture gloutonne','Base',sGreedy,'Prend la pièce la plus chère, sinon hasard.'],
+ ['b3','3 Chasseur de mat','Base',sMateHunter,'Mat en 1, sinon un échec, sinon hasard. Agressif mais imprudent.'],
+ ['b4','4 Glouton prudent','Base',sSafe,'Gain moins perte estimée : évite de laisser une pièce en prise.'],
+ ['b5','5 Minimax-2','Base',sMinimax,'Alpha-bêta à 2 plies sur le matériel : voit ma réponse et celle de l’adversaire (plus lent).'],
+ ['b6','6 Positionnel','Base',sPositional,'Glouton prudent + centre, développement, roque.'],
+ ['b7','7 Pousseur de pions','Base',sPawnRush,'Promotion, puis pion le plus avancé, sinon hasard.'],
+ ['b8','8 Étrangleur','Base',sStrangler,'Minimise la mobilité adverse (mat = idéal). Laisse souvent des pièces en prise.'],
+ ['c1','C1 Mix 70 % positionnel / 30 % aléatoire','Combos',mix(sPositional,sRandom,.7),'Joueur distrait : 30 % de coups aléatoires.'],
+ ['c2','C2 Phases (positionnel › prudent › minimax)','Combos',phases(sPositional,sSafe,sMinimax),'Ouverture positionnelle, milieu prudent, finale minimax.'],
+ ['c3','C3 Cascade mat › gain › positionnel','Combos',cascade,'Mat en 1 d’abord, puis capture rentable, sinon positionnel.'],
+ ['c4','C4 Comité (5 votants)','Combos',vote([sSafe,sPositional,sMinimax,sStrangler,sMateHunter]),'Vote majoritaire de 5 stratégies (lent, souvent dilué).'],
+ ['h1','H1 Hybride : tactique → Minimax | calme → Positionnel','2 modèles',H1,'Le routeur choisit Minimax-2 si échec/capture possible, sinon Positionnel.'],
+ ['h2','H2 Hybride : en avance → Étrangleur | sinon → Positionnel','2 modèles',H2,'Si je mène d’au moins 2 points j’étrangle, sinon je construis.'],
+ ['h3','H3 Hybride : finale → Minimax | sinon → Prudent','2 modèles',H3,'Minimax uniquement en finale, glouton prudent avant.']
+].map(([id,name,kind,fn,desc])=>({id,name,kind,fn,desc}));
+
+const $=s=>document.querySelector(s),GL={k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+const strat=id=>REG.find(r=>r.id===id);
+if(typeof Chess==='undefined'){$('#status').textContent='Bibliothèque chess.js introuvable (réseau bloqué ?).'}
+let mode='H',ch=new Chess(),sel=null,last=null,human='w',flip=false,over=null,plies=0,run=false,timer=0;
+function fill(el,def){let k='';for(const r of REG){if(r.kind!==k){if(k)el.appendChild(g);k=r.kind;var g=document.createElement('optgroup');g.label=k}
+ const o=document.createElement('option');o.value=r.id;o.textContent=r.name;g.appendChild(o)}el.appendChild(g);el.value=def}
+fill($('#opp'),'b4');fill($('#wa'),'h1');fill($('#ba'),'b4');
+function descs(){$('#dO').textContent=strat($('#opp').value).desc;$('#dW').textContent=strat($('#wa').value).desc;$('#dB').textContent=strat($('#ba').value).desc}
+function usage(f){if(!f.usage)return'';const t=Object.values(f.usage).reduce((a,b)=>a+b,0);if(!t)return'';
+ return Object.entries(f.usage).map(([k,v])=>'cas « '+k+' » → '+f.models[k][0]+' : '+Math.round(100*v/t)+' %').join(' · ')}
+function ustat(){const e=mode==='H'?$('#uH'):$('#uA');
+ if(mode==='H'){const u=usage(strat($('#opp').value).fn);e.textContent=u?'Modèles utilisés par l’IA : '+u:''}
+ else{const a=usage(strat($('#wa').value).fn),b=usage(strat($('#ba').value).fn);e.innerHTML=(a?'<b>Blancs</b> : '+a+'<br>':'')+(b?'<b>Noirs</b> : '+b:'')}}
+function render(){
+ const b=$('#board');b.innerHTML='';const lt=sel?ch.moves({square:sel,verbose:true}).map(m=>m.to):[];
+ for(let i=0;i<8;i++)for(let j=0;j<8;j++){const r=flip?7-i:i,f=flip?7-j:j,sq='abcdefgh'[f]+(8-r),p=ch.get(sq),d=document.createElement('div');
+  d.className='sq '+((r+f)%2?'dk':'lt')+(sel===sq?' sel':'')+(last&&last.includes(sq)?' last':'')+(lt.includes(sq)?' tgt':'');d.dataset.sq=sq;
+  if(p){d.textContent=GL[p.type]+'\uFE0E';d.classList.add(p.color==='w'?'wp':'bp')}b.appendChild(d)}
+ const m=material(ch);$('#mat').textContent='Matériel : '+(m===0?'égalité':(m>0?'Blancs +':'Noirs +')+Math.abs(m));
+ $('#status').textContent=over||(ch.turn()==='w'?'Trait aux Blancs':'Trait aux Noirs')+(ch.in_check()?' — échec !':'');
+ const h=ch.history();let s='';h.forEach((x,i)=>{s+=(i%2?'':(i/2+1|0)+'. ')+x+' '});$('#moves').textContent=s;$('#moves').scrollTop=1e5;ustat()}
+function endCheck(){
+ if(ch.game_over()){over=ch.in_checkmate()?'Échec et mat : '+(ch.turn()==='w'?'les Noirs':'les Blancs')+' gagnent':ch.in_stalemate()?'Pat : nulle':'Nulle';return}
+ if(mode==='A'&&plies>=120){const d=material(ch);over=d>=3?'Arbitrage : les Blancs gagnent (+'+d+')':d<=-3?'Arbitrage : les Noirs gagnent (+'+-d+')':'Arbitrage : nulle (écart < 3)'}}
+function play(m){ch.move(m);plies++;last=[m.from,m.to];sel=null;endCheck();render()}
+function aiMove(){if(over||mode!=='H'||ch.turn()===human)return;play(strat($('#opp').value).fn(ch))}
+function newH(){clearTimeout(timer);run=false;ch=new Chess();plies=0;over=null;last=null;sel=null;const c=$('#col').value;human=c==='r'?rnd(['w','b']):c;flip=human==='b';
+ for(const r of REG)if(r.fn.usage)r.fn.usage={};render();if(ch.turn()!==human)timer=setTimeout(aiMove,350)}
+$('#board').onclick=e=>{const q=e.target.closest('.sq');if(!q||mode!=='H'||over||ch.turn()!==human)return;const sq=q.dataset.sq;
+ if(sel){const m=ch.moves({square:sel,verbose:true}).find(x=>x.to===sq&&(!x.promotion||x.promotion==='q'));if(m){play(m);if(!over)timer=setTimeout(aiMove,300);return}}
+ const p=ch.get(sq);sel=p&&p.color===human?sq:null;render()};
+function resetA(){clearTimeout(timer);run=false;$('#go').textContent='▶ Lancer';ch=new Chess();plies=0;over=null;last=null;sel=null;flip=false;for(const r of REG)if(r.fn.usage)r.fn.usage={};render()}
+function stepA(){if(over)return;play(strat(ch.turn()==='w'?$('#wa').value:$('#ba').value).fn(ch))}
+function loopA(){if(!run||over){run=false;$('#go').textContent='▶ Lancer';return}stepA();timer=setTimeout(loopA,+$('#spd').value)}
+$('#go').onclick=()=>{if(over)resetA();run=!run;$('#go').textContent=run?'⏸ Pause':'▶ Lancer';if(run)loopA()};
+$('#stp').onclick=()=>{run=false;clearTimeout(timer);$('#go').textContent='▶ Lancer';stepA()};
+$('#rst').onclick=resetA;$('#newH').onclick=newH;
+function tab(m){mode=m;$('#tH').classList.toggle('on',m==='H');$('#tA').classList.toggle('on',m==='A');
+ $('#pH').classList.toggle('hide',m!=='H');$('#pA').classList.toggle('hide',m!=='A');$('#pS').classList.toggle('hide',m!=='A');m==='H'?newH():resetA()}
+$('#tH').onclick=()=>tab('H');$('#tA').onclick=()=>tab('A');
+for(const i of['#opp','#wa','#ba'])$(i).onchange=()=>{descs();if(i==='#opp')newH();else resetA()};
+const tick=()=>new Promise(r=>setTimeout(r,0));
+$('#ser').onclick=async()=>{const b=$('#ser');b.disabled=true;run=false;clearTimeout(timer);
+ const A=strat($('#wa').value),B=strat($('#ba').value),N=+$('#ns').value;let a=0,d=0,z=0,pl=0,mt=0;
+ for(let g=0;g<N;g++){const c=new Chess(),W=g%2?B:A,K=g%2?A:B;let p=0;
+  while(!c.game_over()&&p<120){c.move((c.turn()==='w'?W:K).fn(c));p++;if(p%4===0)await tick()}
+  let s;if(c.in_checkmate()){mt++;s=c.turn()==='w'?0:1}else if(c.game_over())s=.5;else{const m=material(c);s=m>=3?1:m<=-3?0:.5}
+  if(g%2)s=1-s;s===1?a++:s===0?z++:d++;pl+=p;
+  const n=g+1,sc=(a+d/2)/n;$('#sres').innerHTML='<div class="bar"><i style="width:'+100*a/n+'%;background:var(--acc)"></i><i style="width:'+100*d/n+'%;background:var(--mut)"></i><i style="width:'+100*z/n+'%;background:#d8543b"></i></div>'+
+   '<b>Joueur 1</b> '+a+' · nulles '+d+' · <b>choix 2</b> '+z+' (partie '+n+'/'+N+')<br>Score du joueur 1 : <b>'+sc.toFixed(2)+'</b> · '+(pl/n/2).toFixed(1)+' coups par partie · '+mt+' mat(s)'+(n===N?'<br><span class="note">'+A.name+' contre '+B.name+'</span>':'');await tick()}
+ ustat();b.disabled=false};
+descs();newH();
+</script></body></html>
